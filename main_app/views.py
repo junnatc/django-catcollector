@@ -3,8 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 # additional imports below
 from rest_framework import generics
-from .models import Cat, Feeding
-from .serializers import CatSerializer, FeedingSerializer
+from .models import Cat, Feeding, Toy
+from .serializers import CatSerializer, FeedingSerializer, ToySerializer
 
 # Define the home view
 class Home(APIView):
@@ -20,6 +20,20 @@ class CatDetail(generics.RetrieveUpdateDestroyAPIView):
   queryset = Cat.objects.all()
   serializer_class = CatSerializer
   lookup_field = 'id'
+
+  # add (override) the retrieve method below
+  def retrieve(self, request, *args, **kwargs):
+    instance = self.get_object()
+    serializer = self.get_serializer(instance)
+
+    # Get the list of toys not associated with this cat
+    toys_not_associated = Toy.objects.exclude(id__in=instance.toys.all())
+    toys_serializer = ToySerializer(toys_not_associated, many=True)
+
+    return Response({
+        'cat': serializer.data,
+        'toys_not_associated': toys_serializer.data
+    })
 
 class FeedingListCreate(generics.ListCreateAPIView):
   serializer_class = FeedingSerializer
@@ -40,3 +54,20 @@ class FeedingDetail(generics.RetrieveUpdateDestroyAPIView):
   def get_queryset(self):
     cat_id = self.kwargs['cat_id']
     return Feeding.objects.filter(cat_id=cat_id)
+
+class AddToyToCat(APIView):
+  def post(self, request, cat_id, toy_id):
+    cat = Cat.objects.get(id=cat_id)
+    toy = Toy.objects.get(id=toy_id)
+    cat.toys.add(toy)
+    return Response({'message': f'Toy {toy.name} added to Cat {cat.name}'})
+
+
+class ToyList(generics.ListCreateAPIView):
+  queryset = Toy.objects.all()
+  serializer_class = ToySerializer
+
+class ToyDetail(generics.RetrieveUpdateDestroyAPIView):
+  queryset = Toy.objects.all()
+  serializer_class = ToySerializer
+  lookup_field = 'id'
